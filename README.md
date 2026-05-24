@@ -2,6 +2,8 @@
 
 A Chrome extension that lets you right-click any element on a webpage and recolor it on the fly — background, border, shadow, or text — without touching DevTools.
 
+![Recolour popup](screenshot.png)
+
 ## Features
 
 - **Right-click → Recolour** to open a draggable popup with controls for whichever color properties the element actually has (background, border, shadow, text).
