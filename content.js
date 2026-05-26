@@ -7,6 +7,8 @@ let lastTarget = null;
 let lastX = 0;
 let lastY = 0;
 let activeCleanup = null;
+let navOriginal = null;
+let navDepth = 0;
 
 document.addEventListener(
   "contextmenu",
@@ -20,6 +22,16 @@ document.addEventListener(
 
 const BTN_STYLE =
   "background:#f3f3f3;border:1px solid #ccc;border-radius:4px;padding:4px 8px;cursor:pointer;font:inherit;color:#222;";
+
+const ACTION_BTN_STYLE =
+  BTN_STYLE +
+  "width:54px;box-sizing:border-box;text-align:center;display:inline-flex;align-items:center;justify-content:center;";
+
+const UP_ARROW_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+
+const DOWN_ARROW_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
 
 function parseRgb(rgb) {
   if (!rgb) return null;
@@ -220,6 +232,74 @@ function recolorShadow(boxShadow, newColor) {
   return boxShadow.replace(/rgba?\([^)]+\)/g, newColor);
 }
 
+function navTargetAt(depth) {
+  let t = navOriginal;
+  for (let i = 0; i < depth; i++) {
+    if (!t || !t.parentElement) return null;
+    t = t.parentElement;
+  }
+  return t;
+}
+
+function canNavigateUp() {
+  const next = navTargetAt(navDepth + 1);
+  return !!next && next !== document.documentElement;
+}
+
+function canNavigateDown() {
+  return navDepth > 0;
+}
+
+function navigateUp() {
+  if (!canNavigateUp()) return;
+  const next = navTargetAt(navDepth + 1);
+  if (!next) return;
+  navDepth++;
+  openPanel(next);
+}
+
+function navigateDown() {
+  if (!canNavigateDown()) return;
+  navDepth--;
+  const next = navTargetAt(navDepth);
+  if (!next) return;
+  openPanel(next);
+}
+
+function makeNavigateRow() {
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "display:contents;";
+
+  const label = document.createElement("div");
+  label.textContent = "Navigate";
+  label.style.cssText =
+    "grid-column:1 / 4;font-weight:600;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;";
+
+  const DISABLED = "opacity:0.4;cursor:not-allowed;";
+
+  const upBtn = document.createElement("button");
+  upBtn.title = "Go to parent element";
+  upBtn.innerHTML = UP_ARROW_SVG;
+  const upDisabled = !canNavigateUp();
+  upBtn.style.cssText = ACTION_BTN_STYLE + (upDisabled ? DISABLED : "");
+  upBtn.disabled = upDisabled;
+  if (!upDisabled) upBtn.addEventListener("click", navigateUp);
+
+  const downBtn = document.createElement("button");
+  downBtn.title = "Return to previous child";
+  downBtn.innerHTML = DOWN_ARROW_SVG;
+  const downDisabled = !canNavigateDown();
+  downBtn.style.cssText = ACTION_BTN_STYLE + (downDisabled ? DISABLED : "");
+  downBtn.disabled = downDisabled;
+  if (!downDisabled) downBtn.addEventListener("click", navigateDown);
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(upBtn);
+  wrapper.appendChild(downBtn);
+
+  return wrapper;
+}
+
 function hasDirectText(el) {
   for (const node of el.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
@@ -376,8 +456,7 @@ function makeRow(labelText, initialHex, onChange) {
 
   const dropperBtn = document.createElement("button");
   dropperBtn.title = "Pick color from page";
-  dropperBtn.style.cssText =
-    BTN_STYLE + "padding:4px 6px;display:inline-flex;align-items:center;";
+  dropperBtn.style.cssText = ACTION_BTN_STYLE;
   dropperBtn.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
   dropperBtn.addEventListener("click", async () => {
@@ -398,7 +477,7 @@ function makeRow(labelText, initialHex, onChange) {
 
   const copyBtn = document.createElement("button");
   copyBtn.textContent = "Copy";
-  copyBtn.style.cssText = BTN_STYLE;
+  copyBtn.style.cssText = ACTION_BTN_STYLE;
   copyBtn.addEventListener("click", () => copyText(input.value));
 
   row.appendChild(labelEl);
@@ -600,6 +679,7 @@ function openPanel(target) {
     "align-items:center",
     "justify-content:start"
   ].join(";");
+  rowsGrid.appendChild(makeNavigateRow());
   rowsGrid.appendChild(elementRow.row);
   if (borderRow) rowsGrid.appendChild(borderRow.row);
   if (shadowRow) rowsGrid.appendChild(shadowRow.row);
@@ -664,6 +744,8 @@ chrome.runtime.onMessage.addListener((msg) => {
     toast("Recolour: no element selected");
     return;
   }
+  navOriginal = lastTarget;
+  navDepth = 0;
   openPanel(lastTarget);
 });
 
